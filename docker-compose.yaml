@@ -1,0 +1,16 @@
+version: '3.9'
+services:
+  api:
+    build: .
+    container_name: api_logix
+    tty: true
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app
+      - sqlhosts /opt/IBM/Informix_Client-SDK/etc/sqlhosts
+    ports:
+      - 5000:5000
+networks:
+  api:
+    driver: bridge
