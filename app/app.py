@@ -226,8 +226,42 @@ def update_beneficiario(id):
     
     return make_response(jsonify(retorno), 200)
 
+# Rota para criar um grupo
+@app.route('/grupos', methods=['POST'])
+def create_grupo():
+    conn = conexao()[0]
+    cursor = conexao()[1]
+    data = request.get_json()
+    nome = data.get('nome')
+    cursor.execute(f"insert into tunap_grupos (nome) values ('{nome}')")
+    conn.commit()
+    conn.close()
+    retorno = {}
+    retorno['message'] = 'Grupo criado com sucesso!'
+    return make_response(jsonify(retorno), 201)
 
-
+# Rota para listar todos os grupos
+@app.route('/grupos', methods=['GET'])
+def get_grupos():
+    conn = conexao()[0]
+    cursor = conexao()[1]
+    
+    cursor.execute("select id, nome from tunap_grupos")
+    consulta = cursor.fetchall()
+    grupos = []
+    for row in consulta:
+        grupo = {}
+        grupo['id'] = row[0]
+        grupo['nome'] = row[1]
+        grupos.append(grupo)
+    if consulta == None:
+        return make_response(jsonify({'message': 'Nenhum grupo encontrado!'}), 404)
+    retorno = {}
+    retorno['grupos'] = grupos
+    retorno['message'] = 'Grupos listados com sucesso!'
+    cursor.close()
+    conn.close()
+    return make_response(jsonify(retorno), 200)
 
 # Definir um manipulador de erro personalizado para erros 404
 @app.errorhandler(404)
