@@ -11,6 +11,7 @@ services:
       - sqlhosts /opt/IBM/Informix_Client-SDK/etc/sqlhosts
     ports:
       - 5000:5000
+    # command: python3 app.py
 networks:
   api:
     driver: bridge

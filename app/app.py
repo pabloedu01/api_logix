@@ -34,7 +34,7 @@ def get_beneficiarios():
     nome = request.args.get('nome', None)
     cpf_cnpj = request.args.get('cpf_cnpj', None)
     email = request.args.get('email', None)
-    owner = request.args.get('owner', None)
+    id_owner = request.args.get('id_owner', None)
 
     if nome != None:
         nome = str.upper(nome)
@@ -42,9 +42,9 @@ def get_beneficiarios():
     else:
         consulta_nome = ''
 
-    if owner != None:
-        if int(owner):
-            consulta_owner = f" AND owner = {owner}"
+    if id_owner != None:
+        if int(id_owner):
+            consulta_owner = f" AND owner = {id_owner}"
         else:
             return(make_response(jsonify({'message': 'O parâmetro owner deve ser um número inteiro!'}), 400))
     else:
@@ -77,7 +77,10 @@ def get_beneficiarios():
         total_page = 1
     
     skip_page = (page - 1) * limit
-    consulta = (f'SELECT SKIP {skip_page} first {limit} id, nome, cpf_cnpj, email, telefone, owner FROM tunap_beneficiarios where 1=1 {consulta_nome} {consulta_cpf_cnpj}{consulta_email}{consulta_owner} ORDER BY id')
+    consulta = (f'SELECT SKIP {skip_page} first {limit} tb.id, trim(tb.nome), trim(tb.cpf_cnpj), trim(tb.email), trim(tb.telefone), tb.owner, trim(wa.usuario) \
+                FROM tunap_beneficiarios tb \
+                left join wb_acesso_internet wa on tb.owner = wa.codigo \
+                where 1=1 {consulta_nome} {consulta_cpf_cnpj}{consulta_email}{consulta_owner} ORDER BY id')
     print(consulta)
     cursor.execute(consulta)
     rows = cursor.fetchall()
@@ -90,7 +93,8 @@ def get_beneficiarios():
             'cpf_cnpj': row[2],
             'email': row[3],
             'telefone': row[4],
-            'owner': row[5]
+            'id_owner': row[5],
+            'owner': row[6]
         }
         lista_beneficiarios.append(beneficiario)
     cursor.close()
@@ -109,7 +113,7 @@ def add_beneficiario():
     cpf_cnpj = data.get('cpf_cnpj', None)
     email = data.get('email')
     telefone = data.get('telefone')
-    owner = data.get('owner')
+    owner = data.get('id_owner', 'null')
     if cpf_cnpj != None:
         valida_cpf = ValidaCpfCnpj(cpf_cnpj)
         if valida_cpf.valida():
@@ -123,10 +127,32 @@ def add_beneficiario():
         cursor = conexao()[1]
         insert = (f"INSERT INTO tunap_beneficiarios (nome, cpf_cnpj, email, telefone, owner) VALUES ('{nome}', '{cpf_cnpj}', '{email}', '{telefone}', {owner})")
         cursor.execute(insert)
+        
+
+        consulta = f"select tb.id, trim(tb.nome), trim(tb.cpf_cnpj), trim(tb.email), trim(tb.telefone), tb.owner, trim(wa.usuario) FROM tunap_beneficiarios tb \
+                left join wb_acesso_internet wa on tb.owner = wa.codigo \
+                where tb.cpf_cnpj = {cpf_cnpj}"
+        cursor.execute(consulta)
+        consulta = cursor.fetchone()
+        if consulta == None:
+            return make_response(jsonify({'message': 'Beneficiário não encontrado!'}), 404)
+        print(consulta)
+        beneficiario = {}
+        beneficiario['id'] = consulta[0]
+        beneficiario['nome'] = str(data.get('nome',consulta[1]))
+        beneficiario['cpf_cnpj'] = str(data.get('cpf_cnpj',consulta[2]))
+        beneficiario['email'] = str(data.get('email',consulta[3]))
+        beneficiario['telefone'] = str(data.get('telefone',consulta[4]))
+        beneficiario['id_owner'] = data.get('id_owner',consulta[5])
+        beneficiario['owner'] = consulta[6]
+        print(beneficiario)
+        retorno = {}
+        retorno['Beneficiario'] = beneficiario
+        retorno['message'] = 'Beneficiário adicionado com sucesso!'
         cursor.close()
         conn.close()
-        retorno = {'message': 'Beneficiário adicionado com sucesso!'}
-        return make_response(jsonify({'message': 'Beneficiário adicionado com sucesso!'}), 201)
+
+        return make_response(jsonify(retorno), 201)
     except Exception as e:
         if 'Unique constraint' in str(e):
             conn.close()
@@ -141,36 +167,64 @@ def add_beneficiario():
 def delete_beneficiario(id):
     conn = conexao()[0]
     cursor = conexao()[1]
-    try:
-        cursor.execute("SELECT count(*) FROM tunap_beneficiarios WHERE id = ?", (id,))
-        count = cursor.fetchone()[0]
-        if count == 0:
-            cursor.close()
-            conn.close()
-            return make_response(jsonify({'message': 'Beneficiário não encontrado!'}), 404)
-        else:
-            cursor.execute("delete from tunap_beneficiarios where id = ?", (id,))
-            cursor.close()
-            conn.close()
-            return make_response(jsonify({'message': 'Beneficiário excluído com sucesso!'}), 204)
-    except Exception as e:
-        retorno = {'message': 'Erro ao adicionar beneficiário: ' + str(e)}
-        return make_response(jsonify(retorno), 400)
+    
     
 # Rota para atualizar um beneficiário existente
 @app.route('/beneficiarios/<int:id>', methods=['PUT'])
 def update_beneficiario(id):
     conn = conexao()[0]
     cursor = conexao()[1]
-    try:
-        cursor.execute("SELECT * FROM tunap_beneficiarios WHERE id = ?", (id,))
-        beneficiario = cursor.fetchall()
-        print(beneficiario)
-        return make_response(jsonify(beneficiario),200)
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        return make_response(jsonify({'message': 'Erro ao atualizar beneficiário: ' + str(e)}), 400)
+    data = request.get_json()
+    consulta = f"select tb.id, trim(tb.nome), trim(tb.cpf_cnpj), trim(tb.email), trim(tb.telefone), tb.owner, trim(wa.usuario) FROM tunap_beneficiarios tb \
+                left join wb_acesso_internet wa on tb.owner = wa.codigo \
+                where tb.id = {id}"
+    
+    cursor.execute(consulta)
+    consulta = cursor.fetchone()
+    if consulta == None:
+        return make_response(jsonify({'message': 'Beneficiário não encontrado!'}), 404)
+    beneficiario = {}
+    beneficiario['id'] = consulta[0]
+    beneficiario['nome'] = str(data.get('nome',consulta[1]))
+    beneficiario['cpf_cnpj'] = str(data.get('cpf_cnpj',consulta[2]))
+    beneficiario['email'] = str(data.get('email',consulta[3]))
+    beneficiario['telefone'] = str(data.get('telefone',consulta[4]))
+    beneficiario['id_owner'] = data.get('id_owner',consulta[5])
+    beneficiario['owner'] = consulta[6]
+    if beneficiario['cpf_cnpj'] != None:
+        valida_cpf = ValidaCpfCnpj(beneficiario['cpf_cnpj'])
+        if valida_cpf.valida():
+            pass
+        else:
+            return make_response(jsonify({'message': 'CPF/CNPJ inválido!'}), 400)
+    update = f"UPDATE tunap_beneficiarios SET nome = '{beneficiario['nome']}', cpf_cnpj = '{beneficiario['cpf_cnpj']}', email = '{beneficiario['email']}', telefone = '{beneficiario['telefone']}', owner = {beneficiario['id_owner']} WHERE id = {id}"
+    
+    cursor.execute(update)
+
+
+    consulta = f"select tb.id, trim(tb.nome), trim(tb.cpf_cnpj), trim(tb.email), trim(tb.telefone), tb.owner, trim(wa.usuario) FROM tunap_beneficiarios tb \
+                left join wb_acesso_internet wa on tb.owner = wa.codigo \
+                where tb.id = {id}"
+    
+    cursor.execute(consulta)
+    consulta = cursor.fetchone()
+    if consulta == None:
+        return make_response(jsonify({'message': 'Beneficiário não encontrado!'}), 404)
+    beneficiario = {}
+    beneficiario['id'] = consulta[0]
+    beneficiario['nome'] = str(data.get('nome',consulta[1]))
+    beneficiario['cpf_cnpj'] = str(data.get('cpf_cnpj',consulta[2]))
+    beneficiario['email'] = str(data.get('email',consulta[3]))
+    beneficiario['telefone'] = str(data.get('telefone',consulta[4]))
+    beneficiario['id_owner'] = data.get('id_owner',consulta[5])
+    beneficiario['owner'] = consulta[6]
+    cursor.close()
+    conn.close()
+    retorno = {}
+    retorno['message'] = 'Beneficiário atualizado com sucesso!'
+    retorno['beneficiario'] = beneficiario
+    
+    return make_response(jsonify(retorno), 200)
 
 
 
