@@ -4,5 +4,6 @@ CREATE TABLE tunap_beneficiarios (
     cpf_cnpj VARCHAR(255) UNIQUE,
     email VARCHAR(255),
     telefone VARCHAR(20),
-    owner INTEGER
+    owner INTEGER,
+    cod_empresa INTEGER
 );
