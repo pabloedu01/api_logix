@@ -3,6 +3,7 @@ import IfxPy
 import IfxPyDbi as dbapi2
 from dotenv import load_dotenv
 import os
+from functions.valida_cpf import ValidaCpfCnpj
 load_dotenv()
 
 app = Flask(__name__)
@@ -26,10 +27,43 @@ def index():
 def get_beneficiarios():
     limit = request.args.get('limit', 20)
     page = request.args.get('page', 1)
+    owner = request.args.get('owner', None)
     conn = conexao()[0]
     cursor = conexao()[1]
     cursor.execute('SELECT count(*) FROM tunap_beneficiarios')
+    nome = request.args.get('nome', None)
+    cpf_cnpj = request.args.get('cpf_cnpj', None)
+    email = request.args.get('email', None)
+    owner = request.args.get('owner', None)
+
+    if nome != None:
+        nome = str.upper(nome)
+        consulta_nome = f" AND upper(nome) LIKE '%{nome}%'"
+    else:
+        consulta_nome = ''
+
+    if owner != None:
+        if int(owner):
+            consulta_owner = f" AND owner = {owner}"
+        else:
+            return(make_response(jsonify({'message': 'O parâmetro owner deve ser um número inteiro!'}), 400))
+    else:
+        consulta_owner = ''
+
+    if cpf_cnpj != None:
+        cpf_cnpj = str.upper(cpf_cnpj)
+        consulta_cpf_cnpj = f" AND upper(cpf_cnpj) LIKE '%{cpf_cnpj}%'"
+    else:
+        consulta_cpf_cnpj = ''
+
+    if email != None:
+        email = str.upper(email)
+        consulta_email = f" AND upper(email) LIKE '%{email}%'"
+    else:
+        consulta_email = ''
+
     total = cursor.fetchone()[0]
+
     try:
         limit = int(limit)
     except:
@@ -38,13 +72,14 @@ def get_beneficiarios():
         page = int(page)
     except:
         return make_response(jsonify({'message': 'O parâmetro page deve ser um número inteiro!'}), 400)
-    total_page = total / limit
+    total_page = (total / limit)
+    if total_page == 0:
+        total_page = 1
     
     skip_page = (page - 1) * limit
-    if total_page < page:
-        return make_response(jsonify({'message': 'A página solicitada não existe!'}), 404)
-    print(skip_page)
-    cursor.execute(f'SELECT SKIP {skip_page} first {limit} id, nome, cpf_cnpj, email, telefone, owner FROM tunap_beneficiarios ORDER BY id')
+    consulta = (f'SELECT SKIP {skip_page} first {limit} id, nome, cpf_cnpj, email, telefone, owner FROM tunap_beneficiarios where 1=1 {consulta_nome} {consulta_cpf_cnpj}{consulta_email}{consulta_owner} ORDER BY id')
+    print(consulta)
+    cursor.execute(consulta)
     rows = cursor.fetchall()
     lista_beneficiarios = []
     beneficiarios = {}
@@ -62,7 +97,7 @@ def get_beneficiarios():
     conn.close()
     beneficiarios['Beneficiarios'] = lista_beneficiarios
     beneficiarios['qtd_resultados'] = int(total)
-    beneficiarios['qtd_paginas'] = int(total_page)
+    # beneficiarios['qtd_paginas'] = int(total_page)
     beneficiarios['pagina_atual'] = int(page)
     return jsonify(beneficiarios)
 
@@ -71,14 +106,23 @@ def get_beneficiarios():
 def add_beneficiario():
     data = request.get_json()
     nome = data.get('nome')
-    cpf_cnpj = data.get('cpf_cnpj')
+    cpf_cnpj = data.get('cpf_cnpj', None)
     email = data.get('email')
     telefone = data.get('telefone')
     owner = data.get('owner')
+    if cpf_cnpj != None:
+        valida_cpf = ValidaCpfCnpj(cpf_cnpj)
+        if valida_cpf.valida():
+            pass
+        else:
+            return make_response(jsonify({'message': 'CPF/CNPJ inválido!'}), 400)
+    else:
+        return make_response(jsonify({'message': 'CPF/CNPJ não informado!'}), 400)
     try:
         conn = conexao()[0]
         cursor = conexao()[1]
-        cursor.execute("INSERT INTO tunap_beneficiarios (nome, cpf_cnpj, email, telefone, owner) VALUES (?, ?, ?, ?, ?)", (nome, cpf_cnpj, email, telefone, owner))
+        insert = (f"INSERT INTO tunap_beneficiarios (nome, cpf_cnpj, email, telefone, owner) VALUES ('{nome}', '{cpf_cnpj}', '{email}', '{telefone}', {owner})")
+        cursor.execute(insert)
         cursor.close()
         conn.close()
         retorno = {'message': 'Beneficiário adicionado com sucesso!'}
