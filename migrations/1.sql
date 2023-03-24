@@ -1,3 +1,6 @@
+drop table tunap_beneficiarios;
+drop table tunap_grupos;
+drop table tunap_link_grupos_empresas;
 CREATE TABLE tunap_beneficiarios (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(255),
@@ -5,5 +8,14 @@ CREATE TABLE tunap_beneficiarios (
     email VARCHAR(255),
     telefone VARCHAR(20),
     owner INTEGER,
-    cod_empresa INTEGER
+    id_empresa INTEGER
+);
+CREATE TABLE tunap_grupos (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(255) UNIQUE
+);
+CREATE TABLE tunap_link_grupos_empresas (
+    id SERIAL PRIMARY KEY,
+    id_empresa INTEGER unique,
+    id_grupo INTEGER
 );
