@@ -12,6 +12,19 @@ services:
     ports:
       - 5000:5000
     # command: python3 app.py
+  db:
+        build: ./DB
+        tty: true # Needed to ensure container doesn't self terminate
+        environment:
+            LICENSE: accept
+            DB_PASSWORD: 123456
+        privileged: true
+        ports:
+            - "9088:9088"
+            - "9089:9089"
+            - "27017:27017"
+            - "27018:27018"
+            - "27883:27883"
 networks:
   api:
     driver: bridge
