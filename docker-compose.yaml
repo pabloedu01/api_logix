@@ -1,30 +1,41 @@
 version: '3.9'
 services:
   api:
-    build: .
+    build: ./flask
     container_name: api_logix
     tty: true
     env_file:
-      - .env
+      - ./flask/.env
     volumes:
-      - ./app:/app
-      - sqlhosts /opt/IBM/Informix_Client-SDK/etc/sqlhosts
+      - ./flask:/app
+      - ./flask/sqlhosts:/opt/IBM/Informix_Client-SDK/etc/sqlhosts
+    command: gunicorn -w 10 app:app 
+  nginx:
+    image: nginx:latest
+    tty: true
     ports:
-      - 5000:5000
-    # command: python3 app.py
-  db:
-        build: ./DB
-        tty: true # Needed to ensure container doesn't self terminate
-        environment:
-            LICENSE: accept
-            DB_PASSWORD: 123456
-        privileged: true
-        ports:
-            - "9088:9088"
-            - "9089:9089"
-            - "27017:27017"
-            - "27018:27018"
-            - "27883:27883"
-networks:
-  api:
-    driver: bridge
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/certificado:/etc/nginx/certificado
+    depends_on:
+      - api
+    restart: always
+    # command: gunicorn app:app 
+#   db:
+#         build: ./DB
+#         tty: true # Needed to ensure container doesn't self terminate
+#         environment:
+#             LICENSE: accept
+#             DB_PASSWORD: 123456
+#         privileged: true
+#         ports:
+#             - "9088:9088"
+#             - "9089:9089"
+#             - "27017:27017"
+#             - "27018:27018"
+#             - "27883:27883"
+# networks:
+#   api:
+#     driver: bridge
